@@ -4,14 +4,14 @@
 
 [J.D. Peiffer](https://www.sralab.org/researchers/jd-peiffer)<sup>1,2</sup>, Kunal Shah<sup>1</sup>, Irina Djuraskovic<sup>1,3</sup>, Shawana Anarwala<sup>1</sup>, Kayan Abdou<sup>1</sup>, Rujvee Patel<sup>4</sup>, Prakash Jayabalan<sup>1,5</sup>, Brenton Pennicooke<sup>4</sup>, R. James Cotton<sup>1,5</sup>
 
-<sup>1</sup>Center for Bionic Medicine, Shirley Ryan AbilityLab, Chicago, IL<br>
-<sup>2</sup>Dept of Biomedical Engineering, Northwestern University, Evanston, IL<br>
+<sup>1</sup>Shirley Ryan AbilityLab, Chicago, IL<br>
+<sup>2</sup>Biomedical Engineering, Northwestern University, Evanston, IL<br>
 <sup>3</sup>Interdepartmental Neuroscience, Northwestern University, Chicago, IL<br>
-<sup>4</sup>Department of Neurological Surgery, Washington University School of Medicine, St. Louis, MO, USA<br>
-<sup>5</sup>Department of Physical Medicine and Rehabilitation, Northwestern University Feinberg School of Medicine, Chicago, IL, USA<br>
+<sup>4</sup>Neurological Surgery, Washington University School of Medicine, St. Louis, MO, USA<br>
+<sup>5</sup>Physical Medicine and Rehabilitation, Northwestern University Feinberg School of Medicine, Chicago, IL, USA<br>
 
 </div>
-<img src="overlay_fig.png" width="800">
+<img src="overlay_fig.jpg" width="800">
 
 > This repository includes code and a gradio demo for running the single camera (monocular) biomechanical fitting code from smartphone videos.
 
@@ -41,6 +41,9 @@ A local webpage will open to upload and run the code.
 A jupyter notebook with steps to run the pipeline can be found [here](https://github.com/IntelligentSensingAndRehabilitation/MonocularBiomechanics/blob/main/monocular-demo.ipynb).
 
 # Citation
+This work has been presented at the [2024 American Society of Biomechanics Meeting](https://drive.google.com/open?id=1CEZBhwAYALvUds0VbFy50U1LmOfgS0kO&usp=drive_fs) and [2025 European Society of Biomechanics Meeting](https://drive.google.com/open?id=19y1_F-0o5CVRFdihe-0kReQ9baH-jFX4&usp=drive_fs).
+
+
 [Preprint](https://drive.google.com/file/d/1WIdqdYQ3UaBXbTYgQ0npmWYYGMHwvJ6E/view?usp=sharing) coming soon.
 ```bibtex
 @inproceedings{tba,

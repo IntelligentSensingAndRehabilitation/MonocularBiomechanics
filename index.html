@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="Portable Biomechanics Laboratory">
+  <meta name="keywords" content="Computer Vision, AI Gait Analysis, Biomechanical Modelling">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Portable Biomechanics Laboratory: Clinically Accessible Movement Analysis from a Handheld Smartphone</title>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <!-- <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-PYVRSFMDRL');
+  </script> -->
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/favicon.svg">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">Portable Biomechanics Laboratory: Clinically Accessible Movement Analysis from a Handheld Smartphone</h1>
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://jdpeiffer.com">J.D. Peiffer</a><sup>1,2</sup>,</span>
+            <span class="author-block">
+              Kunal Shah<sup>1</sup>,</span>
+            <span class="author-block">
+              Irina Djuraskovic<sup>1,3</sup>,
+            </span>
+            <span class="author-block">
+              Shawana Anarwala<sup>1</sup>,
+            </span>
+            <span class="author-block">
+              Kayan Abdou<sup>1</sup>,
+            </span>
+            <span class="author-block">
+              Rujvee Patel<sup>4</sup>,
+            </span>
+            <span class="author-block">
+              Prakash Jayabalan<sup>1,5</sup>,
+            </span>
+            <span class="author-block">
+              Brenton Pennicooke<sup>4</sup>,
+            </span>
+            <span class="author-block">
+              R. James Cotton<sup>1,5</sup>
+            </span>
+          </div>
+
+          <br>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>Shirley Ryan AbilityLab</span><br>
+            <span class="author-block"><sup>2</sup>Biomedical Engineering, Northwestern University</span>
+            <span class="author-block"><sup>3</sup>Interdepartmental Neuroscience, Northwestern University</span>
+            <span class="author-block"><sup>4</sup>Neurological Surgery, Washington University School of Medicine</span>
+            <span class="author-block"><sup>5</sup>Physical Medicine and Rehabilitation, Northwestern University Feinberg School of Medicine</span>
+          </div>
+
+          <div class="column has-text-centered">
+            <div class="publication-links">
+              <!-- PDF Link. -->
+              <!-- <span class="link-block">
+                <a href="https://arxiv.org/pdf/2011.12948"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+              <span class="link-block">
+                <a href="https://arxiv.org/abs/2011.12948"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="ai ai-arxiv"></i>
+                  </span>
+                  <span>arXiv</span>
+                </a>
+              </span> -->
+              <!-- Video Link. -->
+              <!-- <span class="link-block">
+                <a href="https://www.youtube.com/watch?v=MrKrnHhk8IA"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-youtube"></i>
+                  </span>
+                  <span>Video</span>
+                </a>
+              </span> -->
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/IntelligentSensingAndRehabilitation/MonocularBiomechanics"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                  </a>
+              </span>
+              <!-- Dataset Link. -->
+              <!-- <span class="link-block">
+                <a href="https://github.com/google/nerfies/releases/tag/0.1"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="far fa-images"></i>
+                  </span>
+                  <span>Data</span>
+                  </a> -->
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hero teaser">
+  <div class="container is-max-desktop">
+    <div class="hero-body">
+      <video id="teaser" autoplay muted loop playsinline height="100%">
+        <source src="./static/videos/jd_running.mp4"
+                type="video/mp4">
+      </video>
+      <h2 class="subtitle has-text-centered">
+        <span class="dnerf">Portable Biomechanics Laboratory</span> allows 3D biomechanical analysis from a moving camera. Perfect for in-clinic evaluation of movement!</h2>
+    </div>
+  </div>
+</section>
+
+
+<section class="hero is-light is-small">
+  <div class="hero-body">
+    <div class="container">
+      <div id="results-carousel" class="carousel results-carousel">
+        <div class="item item-steve">
+          <video poster="" id="steve" autoplay controls muted loop playsinline height="100%">
+            <source src="./static/videos/overlay1.mp4"
+                    type="video/mp4">
+          </video>
+        </div>
+        <!-- <div class="item item-chair-tp">
+          <video poster="" id="chair-tp" autoplay controls muted loop playsinline height="100%">
+            <source src="./static/videos/overlay2.mp4"
+                    type="video/mp4">
+          </video>
+        </div> -->
+        <div class="item item-shiba">
+          <video poster="" id="shiba" autoplay controls muted loop playsinline height="100%">
+            <source src="./static/videos/overlay3.mp4"
+                    type="video/mp4">
+          </video>
+        </div>
+        <div class="item item-fullbody">
+          <video poster="" id="fullbody" autoplay controls muted loop playsinline height="100%">
+            <source src="./static/videos/overlay4.mp4"
+                    type="video/mp4">
+          </video>
+        </div>
+        <div class="item item-blueshirt">
+          <video poster="" id="blueshirt" autoplay controls muted loop playsinline height="100%">
+            <source src="./static/videos/overlay5.mp4"
+                    type="video/mp4">
+          </video>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            We present the first clinically-validated method for biomechanical analysis of human movement from a handheld smartphone.
+          </p>
+          <p>
+            The way a person moves is a direct reflection of their neurological and musculoskeletal health, yet it remains one of the most underutilized vital signs in clinical practice. Although clinicians visually observe movement impairments, they lack accessible and validated methods to objectively measure movement in routine care. This gap prevents wider use of biomechanical measurements in practice, which could enable more sensitive outcome measures or earlier identification of impairment.
+          </p>
+          <p>
+            In this work, we present our Portable Biomechanics Laboratory (PBL), which includes a secure, cloud-enabled smartphone app for data collection and a novel algorithm for fitting biomechanical models to this data. We extensively validated PBL’s biomechanical measures using a large, clinically representative and heterogeneous dataset with synchronous ground truth. Next, we tested the usability and utility of our system in both a neurosurgery and sports medicine clinic.
+          </p>
+          <p>
+            We found joint angle errors within 3 degrees and pelvis translation errors within several centimeters across participants with neurological injury, lower-limb prosthesis users, pediatric inpatients and controls. In addition to being easy and quick to use, gait metrics computed from the PBL showed high reliability (ICCs > 0.9) and were sensitive to clinical differences. For example, in individuals undergoing decompression surgery for cervical myelopathy, the modified Japanese Orthopedic Association (mJOA) score is a common patient-reported outcome measure; we found that PBL gait metrics not only correlated with mJOA scores but also demonstrated greater responsiveness to surgical intervention than the patient-reported outcomes.
+          </p>
+          <p>
+            These findings support the use of handheld smartphone video as a scalable, low-burden, tool for capturing clinically meaningful biomechanical data, offering a promising path toward remote, accessible monitoring of mobility impairments in clinical populations. To promote further research and clinical translation, we open-source the first method for measuring whole-body kinematics from handheld smartphone video validated in clinical populations.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+
+
+<section class="section">
+  <div class="container is-max-desktop">
+
+    <!-- Workflow. -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <div class="content">
+          <h2 class="title is-3">Workflow</h2>
+          <p>
+            <strong>A)</strong> Researchers held a smartphone (optionally with gimbal) while following a participant walking. Our system has no specific requirements regarding viewing angle, distance to subject, or therapist assistance. <strong>B)</strong> Recorded smartphone video and optional wearable sensor data are stored in the cloud, and processed using PosePipe, an open-source package implementing computer vision models for person tracking and keypoint detection. <strong>C)</strong> To reconstruct movement, we represent movement as a function that outputs joint angles, which—combined with body scaling parameters and evaluated through forward kinematics—generate a posed biomechanical model in 3D space. This untrained model is compared to video-extracted joint locations and optionally smartphone sensor data to compute a loss. This loss guides backpropagation to iteratively refine both the kinematic trajectory and body scale. <strong>D)</strong> Initially, the representation lacks knowledge of the person’s movements and scale (e.g., height, limb proportions), but after optimization, it typically tracks joint locations within 15 mm in 3D and 5 pixels in 2D.
+          </p>
+          <img id="workflow" src="./static/images/figure_1.jpg" alt="Workflow diagram" style="height: 100%; width: 100%; object-fit: contain;">
+        </div>
+      </div>
+    </div>
+    <!--/ Workflow. -->
+
+    <!-- Clinical Analysis. -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <div class="content">
+          <h2 class="title is-3">Clinical Analysis</h2>
+          <p>
+            <strong>A)</strong> Hip and Knee flexion angles of clinical and control groups <strong>B)</strong> GDI separates groups at risk of falls determined by the Berg Balance Scale. <strong>C)</strong> GDI correlates with 10 Meter Walk Test performance $r = 0.82$. <strong>D)</strong> GDI of Lower Limb Prosthesis Users (LLPU) and Knee Osteoarthritis (KOA) participants is significantly lower than that of control populations. Further, GDI of Transfemoral amputees is significantly lower than GDI of Transtibial amputees. <strong>E)</strong> GDI collected in clinical settings correlates ($r = 0.47$) with the mJOA, a clinically used ordinal questionnaire.
+          </p>
+          <img id="clinical-analysis" src="./static/images/figure_5.jpg" alt="Clinical Analysis" style="height: 100%; width: 100%; object-fit: contain;">
+        </div>
+      </div>
+    </div>
+    <!--/ Clinical Analysis. -->
+
+    <!-- Concurrent Work. -->
+    <div class="columns is-centered">
+      <div class="column is-full-width">
+        <h2 class="title is-3">Related Links</h2>
+
+        <div class="content has-text-justified">
+          <p>
+            This builds off of a large body of work our lab has been doing in multiview markerless motion capture.
+          </p>
+          <p>
+            <a href="https://doi.org/10.1016/j.apmr.2022.08.868">PosePipeline</a> is an open-source package implementing state of the art computer vision models in a nicely organized database. You can find it on GitHub <a href="https://github.com/IntelligentSensingAndRehabilitation/PosePipeline">here</a>.
+          </p>
+          <p>
+            <a href="https://arxiv.org/pdf/2303.10654">Markerless Motion Capture and Biomechanical Analysis Pipeline</a> describes our multi-camera data collection system and some early biomechanical analysis results.
+          </p>
+          <p>
+            <a href="https://arxiv.org/pdf/2402.17192">Differentiable Biomechanics Unlocks Opportunities for Markerless Motion Capture</a> uses the same end-to-end optimization strategy for multi-view RGB video.
+          </p>
+          <p>
+            Care about validation with optical motion capture? In <a href="https://arxiv.org/pdf/2411.14992">his work</a> we perform a head-to-head comparison between optical motion capture and our markerless approaches (in clinical populations).
+          </p>
+          <p>
+            Want wearables? <a href="https://ieeexplore.ieee.org/abstract/document/10719724">This work</a> describes an approach to fuse PBL's video-based biomechanics with wearable sensors. We find that video does well except during periods of occlusion.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Concurrent Work. -->
+
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <a class="icon-link"
+         href="./static/Monocular_Kinematics_Preprint.pdf">
+        <i class="fas fa-file-pdf"></i>
+      </a>
+      <a class="icon-link" href="https://github.com/IntelligentSensingAndRehabilitation" class="external-link" disabled>
+        <i class="fab fa-github"></i>
+      </a>
+    </div>
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            Thanks to the Nerfies paper for this website template, which is available under the <a rel="license"
+                                                href="http://creativecommons.org/licenses/by-sa/4.0/">Creative
+            Commons Attribution-ShareAlike 4.0 International License</a> at <a href="https://github.com/nerfies/nerfies.github.io">this link</a>.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
