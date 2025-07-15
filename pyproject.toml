@@ -8,20 +8,20 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = "~=3.11"
 dependencies = [
+    "equinox",
     "gradio",
-    "plotly",
-    "jax",
+    "jax[cuda12]",
     "jaxlie",
     "jmp",
-    "equinox",
-    "tensorflow_hub",
     "mujoco-mjx",
+    "numpy-stl",
     "opencv-python",
     "optax",
-    "trimesh",
-    "pyrender",
-    "numpy-stl",
+    "plotly",
     "PyOpenGL",
+    "pyrender",
+    "tensorflow_hub",
+    "trimesh",
 ]
 
 [tool.setuptools.package-data]

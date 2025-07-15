@@ -4,6 +4,8 @@ jax_memory_limit()
 import os
 from typing import List
 
+os.environ["PYOPENGL_PLATFORM"] = "egl"
+
 import cv2
 import gradio as gr
 import jax
