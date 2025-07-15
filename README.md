@@ -39,6 +39,10 @@ python main.py
 ```
 A local webpage will open to upload and run the code.
 
+Note that this demo is not optimized for videos with many people in view -- if you want to do so, consider using [PosePipeline](https://github.com/IntelligentSensingAndRehabilitation/PosePipeline) to annotate the person of interest. 
+
+Depending on your rendering backend, you may need to run with `MUJOCO_GL=egl` for the overlay video.
+
 # Jupyter Notebook
 A jupyter notebook with steps to run the pipeline can be found [here](https://github.com/IntelligentSensingAndRehabilitation/MonocularBiomechanics/blob/main/monocular-demo.ipynb).
 

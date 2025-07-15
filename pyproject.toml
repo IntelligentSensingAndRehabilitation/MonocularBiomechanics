@@ -18,6 +18,10 @@ dependencies = [
     "mujoco-mjx",
     "opencv-python",
     "optax",
+    "trimesh",
+    "pyrender",
+    "numpy-stl",
+    "PyOpenGL",
 ]
 
 [tool.setuptools.package-data]

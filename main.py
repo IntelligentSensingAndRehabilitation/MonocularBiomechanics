@@ -12,7 +12,7 @@ import numpy as np
 import plotly.graph_objects as go
 import tensorflow as tf
 from monocular_demos.biomechanics_mjx.forward_kinematics import ForwardKinematics
-from monocular_demos.biomechanics_mjx.visualize import render_trajectory
+from monocular_demos.biomechanics_mjx.visualize import render_trajectory, render_overlay
 from monocular_demos.biomechanics_mjx.monocular_trajectory import (
     fit_model,
     get_model,
@@ -52,6 +52,17 @@ def save_metrabs_data(accumulated, video_name):
         with open(f"{fname}_keypoints.npz", "wb") as f:
             np.savez(f, keypoints3d=pose3d, keypoints2d=pose2d, boxes=boxes, confs=confs)
 
+def find_matching_video(fname):
+    """Find a video file that matches the given filename with any video extension"""
+    video_extensions = ['.mp4', '.MP4', '.avi', '.AVI', '.mov', '.MOV', '.mkv', '.MKV']
+    
+    for ext in video_extensions:
+        video_path = f"{fname}{ext}"
+        if os.path.exists(video_path):
+            return video_path
+    
+    return None
+
 def render_mjx(selected_file, progress=gr.Progress()):
     """Load saved data and create visualizations"""
     if not selected_file or selected_file == "No fitted models found":
@@ -83,6 +94,59 @@ def render_mjx(selected_file, progress=gr.Progress()):
 
     return result_text, video_filename
 
+def render_overlay_video(selected_file, max_frames, progress=gr.Progress()):
+    """Load saved data and create visualizations"""
+    if not selected_file or selected_file == "No fitted models found":
+        return "Please select a fitted model file first.", None
+    
+    fname = selected_file.replace('_fitted_model.npz', '') # TODO: fix this
+    
+    # Try to load keypoints data
+    biomech_file = selected_file
+    
+    result_text = ""
+    
+    if os.path.exists(biomech_file):
+        with open(biomech_file, "rb") as f:
+            data = np.load(f, allow_pickle=True)
+            result_text += f"Loaded biomechanics data: {biomech_file}\n"
+            fit_timestamps = data['timestamps']
+            qpos = data['qpos']
+            body_scale = data['scale']
+
+            # Find matching video file with any extension
+            video_path = find_matching_video(fname)
+            if video_path is None:
+                return f"No matching video file found for {fname}", None
+            
+            result_text += f"Found video file: {video_path}\n"
+            
+            # Get video dimensions dynamically
+            cap = cv2.VideoCapture(video_path)
+            if not cap.isOpened():
+                return f"Could not open video file: {video_path}", None
+            width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            cap.release()
+    else:
+        return "No biomechanics data found for the selected file.", None
+    
+    progress(0, desc="Rendering Overlay...")
+    
+    overlay = render_overlay(
+        fit_timestamps,
+        qpos,
+        body_scale,
+        video_path,
+        width,
+        height,
+        progress,
+        max_frames=max_frames if max_frames > 0 else None,
+    )
+    
+    progress(1.0, desc="Overlay rendering complete!")
+    
+    return result_text, overlay
 
 
 def get_framerate(video_path):
@@ -455,6 +519,15 @@ with gr.Blocks(title="Open Portable Biomechanics Lab") as demo:
                     interactive=True
                 )
 
+            max_frames_input = gr.Number(
+                label="Max Frames",
+                value=10,
+                minimum=0,
+                maximum=1000,
+                step=1,
+                info="Maximum number of frames to render (0 for all frames)"
+            )
+
             with gr.Column():
                 viz_info = gr.Textbox(
                     label="Data Information",
@@ -473,8 +546,8 @@ with gr.Blocks(title="Open Portable Biomechanics Lab") as demo:
         )
         
         visualize_btn.click(
-            fn=render_mjx,
-            inputs=[fitted_model_dropdown],
+            fn=render_overlay_video,
+            inputs=[fitted_model_dropdown, max_frames_input],
             outputs=[viz_info, video_viewer]
         )
 
