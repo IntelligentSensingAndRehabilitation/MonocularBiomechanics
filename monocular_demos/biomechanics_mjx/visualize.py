@@ -3,6 +3,22 @@ import numpy as np
 from typing import List, Dict
 from jaxtyping import Float, Array
 from tqdm import trange, tqdm
+import shutil
+import subprocess
+import cv2
+from monocular_demos.biomechanics_mjx.forward_kinematics import (
+    ForwardKinematics,
+    scale_model,
+)
+from monocular_demos.dataset import get_samsung_calibration
+from monocular_demos.biomechanics_mjx.monocular_trajectory import project_dynamic
+import pyrender
+from monocular_demos.camera import get_intrinsic, get_extrinsic, distort_3d
+from stl import mesh  # install via pip install numpy-stl
+import trimesh
+import tempfile
+import os
+
 
 
 # use %env MUJOCO_GL=egl to avoid the need for a display
@@ -158,100 +174,253 @@ def render_trajectory(
     else:
         return images
 
-
-def render_tiled(
-    model: mujoco.MjModel,
-    total_frames: int,
-    qpos: List[Float[Array, "time n_pose"]],
-    filename: str = None,
-    image_size: tuple = (1440, 960),
-    panel_size: tuple = (240, 480),
-):
+def get_composed_meshes(model, data):
     """
-    Renders a tiled video of multiple trajectories.
+    Compute and return a combined mesh by processing a MuJoCo model at a specific posture provided in data.
 
-    Args:
-        total_frames: number of frames to render
-        qpos: list of trajectories to render
-        filename: if specified, saves the video to this file
-        image_size: size of the final image
-        panel_size: size of each panel
+    Parameters:
+    - model: the MuJoCo model containing geometry and mesh data
+    - data: the data object containing geometry position and rotation data
 
     Returns:
-        images: list of images
+    - combined: a single mesh object representing the combination of all individual meshes
     """
-    from monocular_demos.biomechanics_mjx import ForwardKinematics
-    from monocular_demos.biomechanics_mjx.forward_kinematics import offset_sites
+    t_mesh_L = []
+    id_geom_with_mesh = np.where(model.geom_type == mujoco.mjtGeom.mjGEOM_MESH)[0]
+    id_mesh = model.geom_dataid[id_geom_with_mesh]
 
-    data = mujoco.MjData(model)
+    for id_g, rel_i in zip(id_geom_with_mesh, id_mesh):
+        offset = data.geom_xpos[id_g].copy()
+        rot = data.geom_xmat[id_g].copy()
 
-    scene_option = mujoco.MjvOption()
-    camera = mujoco.MjvCamera()
-    camera.distance = 3
-    camera.azimuth = 155
-    camera.elevation = -20
+        vert_r_t_list = []
+        face_r_t_list = []
 
-    n_height = image_size[1] // panel_size[1]
-    n_width = image_size[0] / panel_size[0]
-    vids_per_frame = (np.ceil(n_width).astype(int) + 1) * n_height
-    n_videos = (len(qpos) // n_height) * n_height
+        for iv in np.arange(
+            model.mesh_vertadr[rel_i],
+            model.mesh_vertadr[rel_i] + model.mesh_vertnum[rel_i],
+        ):
+            # rotation = Rotation.from_matrix(rot.reshape(3, 3))
+            # vert_r_t = offset[:] + rotation.apply(model.mesh_vert[iv, :])
+            vert_r_t = offset[:] + (rot.reshape(3, 3) @ model.mesh_vert[iv, :].T).T
+            vert_r_t_list.append(vert_r_t)
 
-    video_fps = 30
+        face_r_t = model.mesh_face[
+            model.mesh_faceadr[rel_i] : model.mesh_faceadr[rel_i] + model.mesh_facenum[rel_i],
+            :,
+        ]
+        face_r_t_list.append(face_r_t)
 
-    horizontal_scrolling_px_sec = panel_size[0] / 6
+        vertices = np.array(vert_r_t_list)
+        faces = np.array(face_r_t)
 
-    geom_1_indices = np.where(model.geom_group == 1)
-    model.geom_rgba[geom_1_indices, 3] = 0
+        t_mesh = mesh.Mesh(np.zeros(faces.shape[0], dtype=mesh.Mesh.dtype))
+        for i, f in enumerate(faces):
+            for j in range(3):
+                t_mesh.vectors[i][j] = vertices[f[j], :]
+        t_mesh_L.append(t_mesh)
 
-    renderer = mujoco.Renderer(model, height=panel_size[1], width=panel_size[0])
+    combined = mesh.Mesh(np.concatenate([m.data for m in t_mesh_L]))
+    vertices = combined.vectors.reshape((-1, 3))
+    faces = np.arange(len(vertices)).reshape((-1, 3))
 
-    def render_pose_idx(pose, idx):
-        idx = idx % len(pose)
-        data.qpos = pose[idx]
-        mujoco.mj_forward(model, data)
-        camera.lookat = data.xpos[1]
-        renderer.update_scene(data, camera=camera, scene_option=scene_option)
-        return renderer.render()
+    return vertices, faces
 
-    def render_frame(idx):
-        horizontal_offset_px = (idx / video_fps) * horizontal_scrolling_px_sec
-        column_offset = horizontal_offset_px / panel_size[0]
-        first_column = np.floor(column_offset).astype(int)
-        frame_offset_left = int(np.mod(column_offset, 1) * panel_size[0])
-        frame_offset_right = int(frame_offset_left + image_size[0])
+def get_overlay_monocular(
+    camera_params,
+    rvec,
+    scaled_model,
+    poses,
+    pose_frame_idx,
+    camera_visible,
+    width: int = 1080,
+    height: int = 1920,
+    downsample: int = 1,
+):
+    """
+    Create an overlay function that renders the biomechanics model on top of the camera image.
 
-        video_idx = np.arange(
-            first_column * n_height, first_column * n_height + vids_per_frame
-        )
-        video_idx = np.mod(video_idx, n_videos)
+    Args:
+        camera_params: the camera parameters
+        scaled_model: the scaled model
+        poses: the poses
+        pose_frame_idx: the pose frame index
+        downsample: the downsample factor
+    """
 
-        images = [render_pose_idx(qpos[i], idx) for i in video_idx]
-        # tile the images as n_height x n_width, going down first (requires the transpose)
-        images = np.array(images).reshape(-1, n_height, panel_size[1], panel_size[0], 3)
-        images = np.transpose(images, (1, 0, 2, 3, 4))
+    from monocular_demos.camera import get_extrinsic_dynamic
 
-        rows = [np.concatenate(images[i].tolist(), axis=1) for i in range(n_height)]
-        tiled_images = np.concatenate(rows, axis=0)
+    K = get_intrinsic(camera_params, 0)
+    camera_pose_timeseries = np.array(get_extrinsic_dynamic(camera_params, 0, rvec))
 
-        return tiled_images[:, frame_offset_left:frame_offset_right]
+    fx, fy, cx, cy = K[0, 0], K[1, 1], K[0, 2], K[1, 2]
 
-    images = [render_frame(i) for i in tqdm(range(0, total_frames))]
+    # Camera setup (assuming you have fx, fy, cx, cy, and camera pose)
+    camera = pyrender.IntrinsicsCamera(fx=fx, fy=fy, cx=cx, cy=cy, zfar=20)
 
-    if filename is not None:
-        # use cv2 to write the video
-        import cv2
+    material = pyrender.MetallicRoughnessMaterial(
+        metallicFactor=0.3,  # Increased metallic factor
+        roughnessFactor=0.4,  # Adding roughness factor
+        baseColorFactor=(0.8, 0.5, 0.5, 1.0),  # A neutral color closer to white
+    )
 
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-        video = cv2.VideoWriter(
-            filename, fourcc, video_fps, (image_size[0], image_size[1])
-        )
-        for image in tqdm(images):
-            # convert colorspace
-            image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_RGB2BGR)
-            video.write(image)
-        video.release()
+    # Rendering
+    r = pyrender.OffscreenRenderer(viewport_width=width // downsample, viewport_height=height // downsample)
 
-    return images
+    data = mujoco.MjData(scaled_model)
+
+    def overlay(frame, idx):
+
+        if idx in pose_frame_idx:
+            idx = np.where(idx == pose_frame_idx)[0][0]
+        else:
+            return frame
+
+        if not camera_visible[idx]:
+            return frame
+
+        # get frame-specific camera pose
+        camera_pose = camera_pose_timeseries[idx]
+        camera_pose[[1, 2]] *= -1
+        camera_pose[:3, -1] /= 1000.0
+        camera_pose = np.linalg.inv(camera_pose)
+
+        data.qpos = poses[idx]
+        mujoco.mj_forward(scaled_model, data)
+        vertices, faces = get_composed_meshes(scaled_model, data)
+
+        def correct_vertices(vertices):
+            vertices = distort_3d(camera_params, 0, vertices * 1000)
+            vertices = np.concatenate([vertices, np.ones((*vertices.shape[:-1], 1))], axis=-1)
+            extri = np.linalg.inv(get_extrinsic(camera_params, 0))
+            vertices = (extri @ vertices[..., None])[..., 0]
+            vertices = vertices[:, :3] / vertices[:, 3, None]
+            vertices = vertices / 1000.0
+            return vertices
+
+        vertices = correct_vertices(vertices)
+        mesh = trimesh.Trimesh(vertices, faces)
+        render_mesh = pyrender.Mesh.from_trimesh(mesh, material=material)  # , smooth=True, wireframe=True)
+
+        # Create a scene
+        scene = pyrender.Scene(ambient_light=(0.9, 0.9, 0.9))
+
+        # Adding directional light
+        directional_light = pyrender.DirectionalLight(color=np.ones(3), intensity=2.0)
+        scene.add(directional_light, pose=camera_pose)
+
+        # Add the mesh to the scene
+        scene.add(render_mesh)
+
+        scene.add(camera, pose=camera_pose)
+
+        color, depth = r.render(scene)
+
+        if frame is None:
+            return color
+
+        else:
+            mask = depth > 0
+            frame[mask] = color[mask]
+            return frame
+
+    return overlay
+
+def render_overlay(
+        fit_timestamps,
+        qpos,
+        body_scale,
+        video_path,
+        width,
+        height,
+        progress,
+        max_frames=None,
+    ):
+
+    camera_params = get_samsung_calibration()
+
+    fk = ForwardKinematics()
+    scale = 1 + fk.build_default_scale_mixer() @ body_scale
+    scaled_model = scale_model(fk.model, scale)
+    rvec = np.zeros((len(fit_timestamps), 3))
+
+    fit_inds = np.arange(len(fit_timestamps))
+    confs = np.ones((len(fit_timestamps)))
+
+    mesh_overlay = get_overlay_monocular(camera_params, rvec, scaled_model, qpos, fit_inds, confs, width, height)
+
+    def overlay(image, idx):
+        progress(idx / (max_frames if max_frames is not None else rvec.shape[0]), desc="Rendering Overlay...")
+        return mesh_overlay(image, idx)
+
+    fd, out_file_name = tempfile.mkstemp(suffix=".mp4")
+    os.close(fd)
+
+    video_overlay(video_path, out_file_name, overlay, downsample=1, compress=True, max_frames=max_frames)
+
+    # move tempfile to final location
+    shutil.move(out_file_name, video_path.split('.')[0] + '_overlay.mp4')
+    return video_path.split('.')[0] + '_overlay.mp4'
+
+
+def video_overlay(
+    video,
+    output_name,
+    callback,
+    downsample=4,
+    codec="MP4V",
+    compress=True,
+    bitrate="5M",
+    max_frames=None,
+):
+    """Process a video and create overlay image
+
+    Args:
+        video (str): filename for source
+        output_name (str): output filename
+        callback (fn(im, idx) -> im): method to overlay frame
+    """
+
+    cap = cv2.VideoCapture(video)
+
+    # get info
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+
+    # configure output
+    output_size = (int(w / downsample), int(h / downsample))
+
+    fourcc = cv2.VideoWriter_fourcc(*codec)
+    out = cv2.VideoWriter(output_name, fourcc, fps, output_size)
+
+    if max_frames:
+        total_frames = max_frames
+
+    for idx in tqdm(range(total_frames)):
+
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            break
+
+        # process image in RGB format
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        out_frame = callback(frame, idx)
+
+        # move back to BGR format and write to movie
+        out_frame = cv2.cvtColor(out_frame, cv2.COLOR_RGB2BGR)
+        out_frame = cv2.resize(out_frame, output_size)
+        out.write(out_frame)
+
+    out.release()
+    cap.release()
+
+    if compress:
+        fd, temp = tempfile.mkstemp(suffix=".mp4")
+        subprocess.run(["ffmpeg", "-y", "-i", output_name, "-c:v", "libx264", "-b:v", bitrate, temp])
+        os.close(fd)
+        shutil.move(temp, output_name)
 
 
 def set_axes_equal(ax):

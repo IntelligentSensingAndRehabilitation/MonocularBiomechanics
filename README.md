@@ -27,17 +27,25 @@ These findings support the use of handheld smartphone video as a scalable, low-b
 <video src="docs/static/videos/jd_running.mp4" width="800" controls autoplay muted loop></video>
 
 # Code
+Tested with Ubuntu/WSL 2 and NVIDIA T500 laptop GPU.
+
 Clone and install
 ```
 git clone git@github.com:IntelligentSensingAndRehabilitation/MonocularBiomechanics.git
 cd MonocularBiomechanics/
 pip install -e .
 ```
+Note: For gpu support, modify the pyproject.toml to install `"jax[cuda12]"` and `"tensorflow[with-cuda]"`.
+
 ## Gradio demo
 ```
 python main.py
 ```
 A local webpage will open to upload and run the code.
+
+Note that this demo is not optimized for videos with many people in view -- if you want to do so, consider using [PosePipeline](https://github.com/IntelligentSensingAndRehabilitation/PosePipeline) to annotate the person of interest. 
+
+Depending on your rendering backend, you may need to run with `MUJOCO_GL=egl` for the overlay video.
 
 # Jupyter Notebook
 A jupyter notebook with steps to run the pipeline can be found [here](https://github.com/IntelligentSensingAndRehabilitation/MonocularBiomechanics/blob/main/monocular-demo.ipynb).
@@ -56,3 +64,4 @@ This work has been presented at the [2024 American Society of Biomechanics Meeti
 	date = {2025-07-11},
 }
 ```
+

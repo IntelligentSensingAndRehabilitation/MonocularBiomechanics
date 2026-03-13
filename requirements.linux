@@ -1,0 +1,14 @@
+equinox==0.13.0
+gradio==5.37.0
+jax[cuda12]==0.6.2
+jaxlie==1.5.0
+jmp==0.0.4
+mujoco-mjx==3.3.4
+numpy-stl==3.2.0
+opencv-python==4.12.0.88
+optax==0.2.5
+plotly==6.2.0
+PyOpenGL==3.1.0
+pyrender==0.1.45
+tensorflow_hub==0.16
+trimesh==4.7.0
