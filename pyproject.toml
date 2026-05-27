@@ -24,5 +24,8 @@ dependencies = [
     "trimesh",
 ]
 
+[tool.setuptools.packages.find]
+include = ["monocular_demos*"]
+
 [tool.setuptools.package-data]
 "*" = ["biomechanics_mjx/data/humanoid/**/*"]
