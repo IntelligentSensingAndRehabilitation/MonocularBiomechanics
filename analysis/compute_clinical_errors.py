@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-DATA_DIR = Path(__file__).parents[1] / "data" / "clinical"
+DATA_DIR = Path(__file__).parents[1] / "data"
 
 # Joint order matches GROUPED_JOINT_NAMES from the notebook
 MJAE_COLS = [
@@ -100,7 +100,24 @@ def rte_summary(df: pd.DataFrame) -> str:
     return f"Median (nIQR): {med:.2f} ({niqr:.2f}) cm"
 
 
-def print_table(label: str, csv_path: Path) -> None:
+def mjae_by_population(df: pd.DataFrame) -> pd.DataFrame:
+    """Per-joint median MJAE across each population (project column)."""
+    if "project" not in df.columns:
+        return pd.DataFrame()
+    populations = ["Control", "Neurologic", "LLPU", "Pediatric"]
+    populations = [p for p in populations if p in df["project"].values]
+    joint_labels = [format_joint_name(c.replace("_median", "")) for c in MJAE_COLS]
+    rows = {}
+    for col, label in zip(MJAE_COLS, joint_labels):
+        row = {}
+        for pop in populations:
+            vals = df.loc[df["project"] == pop, col].dropna().values
+            row[pop] = round(float(np.median(vals)), 2) if len(vals) else float("nan")
+        rows[label] = row
+    return pd.DataFrame(rows, index=populations).T
+
+
+def print_table(label: str, csv_path: Path, by_population: bool = False) -> None:
     df = pd.read_csv(csv_path)
     print(f"\n{'=' * 60}")
     print(f"{label}")
@@ -124,6 +141,13 @@ def print_table(label: str, csv_path: Path) -> None:
     print("-" * 40)
     print(rte_summary(df))
 
+    if by_population:
+        by_pop = mjae_by_population(df)
+        if not by_pop.empty:
+            print("\nMJAE by population — median in degrees")
+            print("-" * 40)
+            print(by_pop.to_string())
 
-print_table("MONOCULAR (dynamic)", DATA_DIR / "monocular_combined_joint_errors.csv")
+
+print_table("MONOCULAR (dynamic)", DATA_DIR / "monocular_combined_joint_errors.csv", by_population=True)
 print_table("STATIC", DATA_DIR / "static_combined_joint_errors.csv")
