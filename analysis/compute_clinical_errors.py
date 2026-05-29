@@ -117,6 +117,26 @@ def mjae_by_population(df: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, index=populations).T
 
 
+def overall_mae_by_population(df: pd.DataFrame) -> pd.DataFrame:
+    """Overall mean ± std MAE per population.
+
+    Matches the notebook: average over trials per DOF, then take mean and std
+    across DOFs (so std reflects spread across joints, not across trials).
+    """
+    if "project" not in df.columns:
+        return pd.DataFrame()
+    populations = ["Control", "Neurologic", "LLPU", "Pediatric"]
+    populations = [p for p in populations if p in df["project"].values]
+    valid_cols = [c for c in MAE_COLS if c in df.columns]
+    # mean over trials per DOF, per population → [N_pop, J]
+    per_dof_means = df.groupby("project")[valid_cols].mean()
+    rows = {}
+    for pop in populations:
+        dof_means = per_dof_means.loc[pop].values
+        rows[pop] = {"Mean (deg)": round(float(dof_means.mean()), 2), "Std (deg)": round(float(np.std(dof_means, ddof=1)), 2)}
+    return pd.DataFrame(rows).T
+
+
 def print_table(label: str, csv_path: Path, by_population: bool = False) -> None:
     df = pd.read_csv(csv_path)
     print(f"\n{'=' * 60}")
@@ -147,6 +167,12 @@ def print_table(label: str, csv_path: Path, by_population: bool = False) -> None
             print("\nMJAE by population — median in degrees")
             print("-" * 40)
             print(by_pop.to_string())
+
+        overall_mae = overall_mae_by_population(df)
+        if not overall_mae.empty:
+            print("\nOverall MAE by population — mean in degrees")
+            print("-" * 40)
+            print(overall_mae.to_string())
 
 
 print_table("MONOCULAR (dynamic)", DATA_DIR / "monocular_combined_joint_errors.csv", by_population=True)
