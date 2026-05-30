@@ -202,11 +202,11 @@ def process_videos_with_metrabs(
     video_count = 0
     for video_idx, video_path in enumerate(video_files):
         if video_path is not None:
-            vid, n_frames = video_reader(video_path)
+            vid, n_frames = video_reader(video_path, batch_size=2)
             accumulated = None
             for frame_idx, frame_batch in enumerate(vid):
                 progress(
-                    frame_idx * 8 / n_frames, desc=f"Processing video {video_idx+1}"
+                    frame_idx * 2 / n_frames, desc=f"Processing video {video_idx+1}"
                 )
 
                 pred = model.detect_poses_batched(frame_batch, skeleton=skeleton)
