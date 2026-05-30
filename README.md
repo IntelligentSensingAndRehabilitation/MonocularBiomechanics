@@ -27,29 +27,37 @@ Clone and install
 ```
 git clone git@github.com:IntelligentSensingAndRehabilitation/MonocularBiomechanics.git
 cd MonocularBiomechanics/
-pip install -e .
-# uv sync
+uv sync --extra cuda  # GPU (CUDA 12)
+# uv sync            # CPU only
 ```
-Note: For cpu support, modify the pyproject.toml to remove extras from `"jax[cuda12]"` and `"tensorflow[and-cuda]"`.
 
-Note 2: Setting `"setuptools==81.0.0"` in pyproject.toml may help resolve some tensorflow version errors. 
+Note: Setting `"setuptools==81.0.0"` in pyproject.toml may help resolve some tensorflow version errors. 
 
-Note 3: Windows is not supported. WSL may work for biomechanical fitting but is not supported for overlay creation.
+Note 2: Windows is not supported. WSL may work for biomechanical fitting but is not supported for overlay creation.
 
 
 ## Gradio demo
 ```
-python main.py
-# uv run python main.py
+uv run python main.py
 ```
 A local webpage will open to upload and run the code.
 
-Note that this demo is not optimized for videos with many people in view -- if you want to do so, consider using [PosePipeline](https://github.com/IntelligentSensingAndRehabilitation/PosePipeline) to annotate the person of interest. 
+Note that this demo is not optimized for videos with many people in view -- if you want to do so, consider using [PosePipeline](https://github.com/IntelligentSensingAndRehabilitation/PosePipeline) to annotate the person of interest.
+
+**This demo is intended for proof-of-concept fitting only.** Production runs should consider using [PosePipeline](https://github.com/IntelligentSensingAndRehabilitation/PosePipeline) or contact the authors for a Docker container.
+
+**Camera intrinsics:** The demo uses default camera intrinsics from a Samsung Galaxy S20 (see [`monocular_demos/dataset.py:get_samsung_calibration`](monocular_demos/dataset.py#L510)). Most proof-of-concept fits will work fine with these defaults, but results may vary if your camera's intrinsics differ significantly. For best results, provide calibration parameters specific to your device.
 
 Depending on your rendering backend, you may need to run with `MUJOCO_GL=egl` for the overlay video.
 
 # Jupyter Notebook
 A jupyter notebook with steps to run the pipeline can be found [here](https://github.com/IntelligentSensingAndRehabilitation/MonocularBiomechanics/blob/main/monocular-demo.ipynb).
+
+# Reproducing Paper Analysis
+To reproduce the error tables from the paper, first download the data from [Zenodo](https://doi.org/10.5281/zenodo.20450570) and place the CSV files in `data/clinical/`, then run:
+```
+python analysis/compute_clinical_errors.py
+```
 
 # Citation
 This work has been presented at the [2024 American Society of Biomechanics Meeting](https://drive.google.com/open?id=1CEZBhwAYALvUds0VbFy50U1LmOfgS0kO&usp=drive_fs) and [2025 European Society of Biomechanics Meeting](https://drive.google.com/open?id=19y1_F-0o5CVRFdihe-0kReQ9baH-jFX4&usp=drive_fs).

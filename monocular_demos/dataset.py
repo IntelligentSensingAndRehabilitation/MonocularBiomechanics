@@ -29,7 +29,6 @@ class KeypointDataset(eqx.Module):
     timestamps: Float[Array, "times"]
     keypoints: Float[Array, "cameras times keypoints 2"]
     keypoint_confidence: Float[Array, "cameras times keypoints"]
-    camera_weights: Float[Array, "cameras times keypoints"] | None
     max_time: Float[Array, "1"]
     trial_lengths: jnp.array
     num_trials: int = eqx.field(static=True)
@@ -42,7 +41,6 @@ class KeypointDataset(eqx.Module):
         timestamps,
         keypoints,
         keypoint_confidence,
-        camera_weights=None,
         sample_length=None,
         align_timestamps=True,
         max_length=None,
@@ -87,10 +85,6 @@ class KeypointDataset(eqx.Module):
         self.keypoints = padded_stack(keypoints, 1)
         self.keypoint_confidence = padded_stack(keypoint_confidence, 1)
 
-        # if we have camera weights we use them, otherwise to make things behave nicely
-        # we will use the confidences
-        self.camera_weights = padded_stack(camera_weights, 1) if camera_weights is not None else self.keypoint_confidence
-
         self.max_time = jnp.array(max([t[-1] for t in timestamps]), dtype=jnp.float32)
 
         # static fields should not be jax types
@@ -114,33 +108,7 @@ class KeypointDataset(eqx.Module):
         elif isinstance(idx, jnp.ndarray) and len(idx.shape) > 0:
             raise NotImplementedError("Higher dimensional indexing not supported")
 
-    @eqx.filter_jit
-    def get_with_camera_weights(self, idx, sample_length=None):
-
-        sample_length = sample_length if sample_length is not None else self.sample_length
-
-        if isinstance(idx, int):
-            idx = jnp.array(idx)
-            return self._internal_getitem(idx, camera_weights=True, sample_length=sample_length)
-        elif isinstance(idx, jnp.ndarray) and len(idx.shape) == 1:
-            return jax.vmap(lambda x: self._internal_getitem(x, camera_weights=True, sample_length=sample_length))(idx)
-        elif isinstance(idx, jnp.ndarray) and len(idx.shape) > 0:
-            raise NotImplementedError("Higher dimensional indexing not supported")
-
-    @eqx.filter_jit
-    def get_without_camera_weights(self, idx, sample_length=None):
-
-        sample_length = sample_length if sample_length is not None else self.sample_length
-
-        if isinstance(idx, int):
-            idx = jnp.array(idx)
-            return self._internal_getitem(idx, camera_weights=True, sample_length=sample_length)
-        elif isinstance(idx, jnp.ndarray) and len(idx.shape) == 1:
-            return jax.vmap(lambda x: self._internal_getitem(x, camera_weights=True, sample_length=sample_length))(idx)
-        elif isinstance(idx, jnp.ndarray) and len(idx.shape) > 0:
-            raise NotImplementedError("Higher dimensional indexing not supported")
-
-    def _internal_getitem(self, idx, sample_length, camera_weights=False):
+    def _internal_getitem(self, idx, sample_length):
         # idx gets modulo'd to index into multiple flattened dimensions. first it indexes into trials within a session
         # then it wraps around and indexes sessions, and finally it wraps around and residual determines the start
         # offset
@@ -160,9 +128,7 @@ class KeypointDataset(eqx.Module):
         session_trial_len = session_fetch(self.trial_lengths)
         session_timestamps = session_fetch(self.timestamps)
         session_keypoints = session_fetch(self.keypoints)
-
-        # we have the ability to either
-        session_keypoint_confidence = jnp.where(camera_weights, session_fetch(self.camera_weights), session_fetch(self.keypoint_confidence))
+        session_keypoint_confidence = session_fetch(self.keypoint_confidence)
 
         trial_len = jnp.take(session_trial_len, trial_idx)
         timestamps = jnp.take(session_timestamps, trial_idx, axis=0)
@@ -204,9 +170,6 @@ class KeypointDataset(eqx.Module):
     def get_all_keypoints(self, idx):
         assert idx < len(self.keypoints), f"Index {idx} out of range {len(self.keypoints)}"
         return self.keypoints[idx][:, : self.trial_lengths[idx]], self.keypoint_confidence[idx][:, : self.trial_lengths[idx]]
-
-    def get_all_camera_weights(self, idx):
-        return self.camera_weights[idx][:, : self.trial_lengths[idx]]
 
     @property
     def num_sessions(self) -> int:
@@ -352,7 +315,6 @@ class MonocularDataset(KeypointDataset):
         keypoint_confidence: Array,
         camera_params: Dict,
         phone_attitude: Array | None = None,
-        camera_weights=None,
         sample_length=None,
         align_timestamps=True,
         max_length=None,
@@ -364,7 +326,6 @@ class MonocularDataset(KeypointDataset):
             timestamps,
             keypoints_2d,
             keypoint_confidence,
-            camera_weights,
             sample_length,
             align_timestamps,
             max_length,
@@ -444,7 +405,6 @@ class MonocularDataset(KeypointDataset):
         self.keypoints = padded_stack(keypoints_2d, 1)
         self.keypoints_3d = padded_stack(keypoints_3d, 1)
         self.keypoint_confidence = padded_stack(keypoint_confidence, 1)
-        self.camera_weights = padded_stack(keypoint_confidence, 1)
         self.timestamps = padded_stack(timestamps)
         if phone_attitude is not None:
             self.phone_attitude = padded_stack(phone_attitude, 0, max_attitude_length)  # unsure about which axis here
@@ -453,7 +413,7 @@ class MonocularDataset(KeypointDataset):
             self.attitude_lengths = None
         self.trial_lengths = jnp.array([min(len(t), max_length) for t in timestamps])
 
-    def _internal_getitem(self, idx, sample_length, camera_weights=False):
+    def _internal_getitem(self, idx, sample_length):
         # idx gets modulo'd to index into multiple flattened dimensions. first it indexes into trials within a session
         # then it wraps around and indexes sessions, and finally it wraps around and residual determines the start
         # offset
@@ -477,8 +437,7 @@ class MonocularDataset(KeypointDataset):
         if self.phone_attitude is not None:
             session_attitude = session_fetch(self.phone_attitude)
 
-        # we have the ability to either
-        session_keypoint_confidence = jnp.where(camera_weights, session_fetch(self.camera_weights), session_fetch(self.keypoint_confidence))
+        session_keypoint_confidence = session_fetch(self.keypoint_confidence)
 
         trial_len = jnp.take(session_trial_len, trial_idx)
         timestamps = jnp.take(session_timestamps, trial_idx, axis=0)

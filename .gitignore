@@ -1,3 +1,6 @@
+uv.lock
+*.npz
+*.mp4
 .gradio/
 .jax_cache/
 

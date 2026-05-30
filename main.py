@@ -526,6 +526,8 @@ with gr.Blocks(title="Open Portable Biomechanics Lab") as demo:
                     interactive=True
                 )
 
+                viz_refresh_btn = gr.Button("Refresh File List", variant="secondary")
+
             max_frames_input = gr.Number(
                 label="Max Frames",
                 value=10,
@@ -547,11 +549,11 @@ with gr.Blocks(title="Open Portable Biomechanics Lab") as demo:
         # create video viewer
         video_viewer = gr.Video(label="Visualization Video", autoplay=True, height=400)
 
-        refresh_btn.click(
+        viz_refresh_btn.click(
             fn=lambda: gr.Dropdown(choices=get_available_fitted_models()),
             outputs=[fitted_model_dropdown]
         )
-        
+
         visualize_btn.click(
             fn=render_overlay_video,
             inputs=[fitted_model_dropdown, max_frames_input],

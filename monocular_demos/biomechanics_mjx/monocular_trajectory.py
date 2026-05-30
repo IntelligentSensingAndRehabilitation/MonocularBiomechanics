@@ -633,13 +633,10 @@ def step(model, opt_state, data, loss_grad, optimizer, **kwargs):
     return val, model, opt_state, metrics
 
 
-def fetch_data(i, dataset, N, model_device, robust_camera_weights=False):
+def fetch_data(i, dataset, N, model_device):
     # fetch the next batch of data and move to the same device as the model
     idx = jnp.arange(N) + i * N
-    if robust_camera_weights:
-        data = dataset.get_with_camera_weights(idx)
-    else:
-        data = dataset[idx]
+    data = dataset[idx]
     data = jax.tree_util.tree_map(lambda x: jax.device_put(x, model_device), data)
     return data
 

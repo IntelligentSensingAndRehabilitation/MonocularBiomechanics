@@ -4,13 +4,16 @@ line-length = 150
 [project]
 name = "monocular_demos"
 version = "0.1.0"
-description = "Add your description here"
+description = "Biomechanical fitting from monocular video"
 readme = "README.md"
+authors = [
+    {name = "J.D. Peiffer"}
+]
 requires-python = "~=3.11.0"
 dependencies = [
     "equinox",
     "gradio",
-    "jax[cuda12]",
+    "jax",
     "jaxlie",
     "jmp",
     "mujoco-mjx",
@@ -20,12 +23,16 @@ dependencies = [
     "plotly",
     "PyOpenGL",
     "pyrender",
-    "tensorflow[and-cuda]",
+    "tensorflow",
     "tensorflow_hub",
     "trimesh",
 ]
 
 [project.optional-dependencies]
+cuda = [
+    "jax[cuda12]",
+    "tensorflow[and-cuda]",
+]
 notebooks = [
     "ipykernel",
     "matplotlib",
