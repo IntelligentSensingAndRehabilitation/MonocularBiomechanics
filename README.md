@@ -21,21 +21,26 @@ Movement directly reflects neurological and musculoskeletal health, yet objectiv
 <video src="docs/static/videos/jd_running.mp4" width="800" controls autoplay muted loop></video>
 
 # Code
-Tested with Ubuntu/WSL 2 and NVIDIA T500 laptop GPU.
+Tested with Ubuntu 24.04.3 LTS using [uv](https://docs.astral.sh/uv/).
 
 Clone and install
 ```
 git clone git@github.com:IntelligentSensingAndRehabilitation/MonocularBiomechanics.git
 cd MonocularBiomechanics/
 pip install -e .
+# uv sync
 ```
 Note: For cpu support, modify the pyproject.toml to remove extras from `"jax[cuda12]"` and `"tensorflow[and-cuda]"`.
-Note 2: Setting `"setuptools==81.0.0"` may help resolve some tensorflow version errors. 
+
+Note 2: Setting `"setuptools==81.0.0"` in pyproject.toml may help resolve some tensorflow version errors. 
+
+Note 3: Windows is not supported. WSL may work for biomechanical fitting but is not supported for overlay creation.
 
 
 ## Gradio demo
 ```
 python main.py
+# uv run python main.py
 ```
 A local webpage will open to upload and run the code.
 
