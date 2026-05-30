@@ -25,6 +25,13 @@ dependencies = [
     "trimesh",
 ]
 
+[project.optional-dependencies]
+notebooks = [
+    "ipykernel",
+    "matplotlib",
+    "numpy",
+]
+
 [tool.setuptools.packages.find]
 include = ["monocular_demos*"]
 
