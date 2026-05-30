@@ -628,7 +628,7 @@ def loss(
 def step(model, opt_state, data, loss_grad, optimizer, **kwargs):
     x, targets = data
     (val, metrics), grads = loss_grad(model, x=x, y=targets, **kwargs)
-    updates, opt_state = optimizer.update(grads, opt_state, model)
+    updates, opt_state = optimizer.update(grads, opt_state, eqx.filter(model, eqx.is_inexact_array))
     model = eqx.apply_updates(model, updates)
     return val, model, opt_state, metrics
 
@@ -703,7 +703,7 @@ def fit_model(
         components.append(optax.clip_by_global_norm(clip_by_global_norm))
     optimizer = optax.chain(*components)
 
-    opt_state = optimizer.init(eqx.filter(model, eqx.is_array))
+    opt_state = optimizer.init(eqx.filter(model, eqx.is_inexact_array))
 
     loss_grad = eqx.filter_value_and_grad(
         functools.partial(

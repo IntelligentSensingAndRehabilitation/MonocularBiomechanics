@@ -116,10 +116,14 @@ def render_overlay_video(selected_file, max_frames, progress=gr.Progress()):
             qpos = data['qpos']
             body_scale = data['scale']
 
-            # Find matching video file with any extension
-            video_path = find_matching_video(fname)
+            # Use saved path if present and still valid, else search by name
+            saved_path = str(data['video_path']) if 'video_path' in data else None
+            if saved_path and os.path.exists(saved_path):
+                video_path = saved_path
+            else:
+                video_path = find_matching_video(fname)
             if video_path is None:
-                return f"No matching video file found for {fname}", None
+                return f"Video not found in temp or working directory for {fname}", None
             
             result_text += f"Found video file: {video_path}\n"
             
@@ -311,7 +315,8 @@ def process_videos_with_biomechanics(
                 rnc=np.array(rnc),
                 sites=np.array(state.site_xpos),
                 joints=np.array(state.xpos),
-                scale=np.array(model.body_scale)
+                scale=np.array(model.body_scale),
+                video_path=video_path,
             )
 
     return f"Successfully processed {len(dataset)} videos with biomechanics fitting."
