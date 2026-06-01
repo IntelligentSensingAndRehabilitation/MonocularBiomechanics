@@ -21,7 +21,7 @@ dependencies = [
     "opencv-python",
     "optax",
     "plotly",
-    "PyOpenGL",
+    "PyOpenGL>=3.1.4",
     "pyrender",
     "tensorflow",
     "tensorflow_hub",
@@ -38,6 +38,16 @@ notebooks = [
     "matplotlib",
     "numpy",
 ]
+dev = [
+    "pytest",
+]
+
+[tool.uv]
+override-dependencies = ["PyOpenGL==3.1.10"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 
 [tool.setuptools.packages.find]
 include = ["monocular_demos*"]
