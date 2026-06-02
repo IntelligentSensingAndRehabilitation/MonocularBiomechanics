@@ -31,6 +31,12 @@ uv sync --extra cuda  # GPU (CUDA 12)
 # uv sync            # CPU only
 ```
 
+**EGL/OpenGL system dependencies:** The rendering pipeline uses EGL (via PyOpenGL and MuJoCo). On Ubuntu/Debian, install the required system packages before running:
+```
+sudo apt-get install libgl1 libegl1 libgles2 libosmesa6-dev libglib2.0-0 ffmpeg
+```
+`MUJOCO_GL` and `PYOPENGL_PLATFORM` default to `egl`. Update these environment variables if you need to use a different rendering backend.
+
 Note: Setting `"setuptools==81.0.0"` in pyproject.toml may help resolve some tensorflow version errors. 
 
 Note 2: Windows is not supported. WSL may work for biomechanical fitting but is not supported for overlay creation.
@@ -48,7 +54,6 @@ Note that this demo is not optimized for videos with many people in view -- if y
 
 **Camera intrinsics:** The demo uses default camera intrinsics from a Samsung Galaxy S20 (see [`monocular_demos/dataset.py:get_samsung_calibration`](monocular_demos/dataset.py#L510)). Most proof-of-concept fits will work fine with these defaults, but results may vary if your camera's intrinsics differ significantly. For best results, provide calibration parameters specific to your device.
 
-Depending on your rendering backend, you may need to run with `MUJOCO_GL=egl` for the overlay video.
 
 # Jupyter Notebook
 A jupyter notebook with steps to run the pipeline can be found [here](https://github.com/IntelligentSensingAndRehabilitation/MonocularBiomechanics/blob/main/monocular-demo.ipynb).

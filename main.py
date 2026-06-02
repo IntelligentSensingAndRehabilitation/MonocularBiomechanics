@@ -4,7 +4,8 @@ jax_memory_limit()
 import os
 from typing import List
 
-os.environ["PYOPENGL_PLATFORM"] = "egl"
+os.environ.setdefault("MUJOCO_GL", "egl")
+os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
 
 import cv2
 import gradio as gr
