@@ -17,6 +17,14 @@ import tempfile
 import os
 
 
+def _ensure_collections_mapping_compat():
+    import collections
+    import collections.abc
+
+    if not hasattr(collections, "Mapping"):
+        collections.Mapping = collections.abc.Mapping
+
+
 
 # use %env MUJOCO_GL=egl to avoid the need for a display
 def render_trajectory(
@@ -182,6 +190,7 @@ def get_composed_meshes(model, data):
     Returns:
     - combined: a single mesh object representing the combination of all individual meshes
     """
+    _ensure_collections_mapping_compat()
     from stl import mesh  # install via pip install numpy-stl
 
     t_mesh_L = []
@@ -247,6 +256,7 @@ def get_overlay_monocular(
         downsample: the downsample factor
     """
 
+    _ensure_collections_mapping_compat()
     import pyrender
     import trimesh
     from monocular_demos.camera import get_extrinsic_dynamic
