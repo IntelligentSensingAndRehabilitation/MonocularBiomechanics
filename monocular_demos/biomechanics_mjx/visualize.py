@@ -108,6 +108,81 @@ def configure_mujoco_egl(verbose: bool = True):
         )
 
 
+_RENDER_CHILD_ENV = "_MONOCULAR_DEMOS_RENDER_CHILD"
+
+
+def _render_trajectory_in_subprocess(pose, filename, kwargs, verbose=True):
+    """Render in a clean child process.
+
+    On a headless cloud GPU, creating MuJoCo's EGL context in a process that
+    already holds CUDA contexts (from JAX and/or TensorFlow) can hard-crash with
+    a segfault that kills the whole kernel with no traceback. A fresh child
+    process initializes EGL before any CUDA context exists, which avoids the
+    conflict; it also contains any remaining native crash to the child (raising
+    a normal Python error here) instead of taking down the notebook kernel.
+    """
+    import pickle
+    import subprocess
+    import sys
+
+    def _to_numpy(value):
+        if value is None:
+            return None
+        return np.asarray(value)
+
+    payload = {
+        "pose": _to_numpy(pose),
+        "filename": filename,
+        "kwargs": {
+            key: (_to_numpy(value) if hasattr(value, "__array__") else value)
+            for key, value in kwargs.items()
+        },
+    }
+
+    fd, payload_path = tempfile.mkstemp(suffix=".pkl")
+    with os.fdopen(fd, "wb") as f:
+        pickle.dump(payload, f)
+
+    child_env = dict(os.environ)
+    child_env[_RENDER_CHILD_ENV] = "1"
+    child_env.setdefault("MUJOCO_GL", "egl")
+    # Rendering only uses the CPU MuJoCo model (mj_forward), never a JAX GPU
+    # computation. Force JAX onto CPU in the child so it never creates a CUDA
+    # context -- EGL is then the sole user of the GPU, which is what avoids the
+    # EGL-after-CUDA segfault.
+    child_env["JAX_PLATFORMS"] = "cpu"
+    child_env.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+
+    child_code = (
+        "import pickle, sys; "
+        "from monocular_demos.biomechanics_mjx.visualize import render_trajectory; "
+        "d = pickle.load(open(sys.argv[1], 'rb')); "
+        "render_trajectory(d['pose'], d['filename'], **d['kwargs'])"
+    )
+
+    if verbose:
+        print("[render_trajectory] rendering in an isolated subprocess (EGL/CUDA safety)")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", child_code, payload_path],
+            env=child_env,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        os.remove(payload_path)
+
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Off-screen rendering failed in the isolated subprocess "
+            f"(exit code {result.returncode}). This is usually an EGL/GPU "
+            "driver problem on the host. stderr tail:\n"
+            f"{result.stderr[-3000:]}"
+        )
+
+
 # use %env MUJOCO_GL=egl to avoid the need for a display
 def render_trajectory(
     pose: Float[Array, "time n_pose"] | List[Dict],
@@ -149,6 +224,40 @@ def render_trajectory(
     """
 
     configure_mujoco_egl()
+
+    # Isolate the EGL render in a clean child process. In a process that already
+    # holds JAX/TensorFlow CUDA contexts, MuJoCo's EGL context creation can
+    # segfault and kill the kernel; a fresh subprocess initializes EGL first and
+    # contains any native crash. Only used when writing to a file with the
+    # default model and the EGL backend, and never re-entered by the child.
+    if (
+        os.environ.get(_RENDER_CHILD_ENV) != "1"
+        and os.environ.get("MONOCULAR_DEMOS_RENDER_INLINE") != "1"
+        and filename is not None
+        and mj_model is None
+        and os.environ.get("MUJOCO_GL", "egl") == "egl"
+    ):
+        _render_trajectory_in_subprocess(
+            pose,
+            filename,
+            dict(
+                xml_path=xml_path,
+                body_scale=body_scale,
+                site_offsets=site_offsets,
+                margin=margin,
+                heel_vertical_offset=heel_vertical_offset,
+                height=height,
+                width=width,
+                fps=fps,
+                show_grfs=show_grfs,
+                actuators=actuators,
+                azimuth=azimuth,
+                blank_background=blank_background,
+                shadow=shadow,
+                hide_tendon=hide_tendon,
+            ),
+        )
+        return
 
     from monocular_demos.biomechanics_mjx.forward_kinematics import (
         ForwardKinematics,
