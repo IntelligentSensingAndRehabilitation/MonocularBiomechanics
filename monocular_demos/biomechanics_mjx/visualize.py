@@ -12,13 +12,179 @@ from monocular_demos.biomechanics_mjx.forward_kinematics import (
 )
 from monocular_demos.dataset import get_samsung_calibration
 from monocular_demos.biomechanics_mjx.monocular_trajectory import project_dynamic
-import pyrender
 from monocular_demos.camera import get_intrinsic, get_extrinsic, distort_3d
-from stl import mesh  # install via pip install numpy-stl
-import trimesh
 import tempfile
 import os
 
+
+def _ensure_collections_mapping_compat():
+    import collections
+    import collections.abc
+
+    if not hasattr(collections, "Mapping"):
+        collections.Mapping = collections.abc.Mapping
+
+
+def configure_mujoco_egl(verbose: bool = True):
+    """Make MuJoCo's headless EGL rendering backend usable on cloud GPUs.
+
+    ``mujoco.Renderer`` renders off-screen through EGL. To create a GPU device
+    display, libglvnd must find an ICD config that points at the NVIDIA EGL
+    driver. Cloud notebook kernels (e.g. Google Colab) install the driver
+    libraries but not that ICD config, so EGL cannot initialize a device display
+    and the renderer aborts -- in a notebook this kills the kernel with no
+    Python traceback.
+
+    Default the GL backend to EGL and, when the NVIDIA EGL driver is present but
+    its ICD config is missing, write one so libglvnd can discover the driver.
+    """
+    import ctypes
+    import glob
+    import json
+
+    def _log(msg):
+        if verbose:
+            print(f"[configure_mujoco_egl] {msg}")
+
+    os.environ.setdefault("MUJOCO_GL", "egl")
+    if os.environ["MUJOCO_GL"] != "egl":
+        _log(f"MUJOCO_GL={os.environ['MUJOCO_GL']!r} (not egl); nothing to do")
+        return
+
+    # An explicit vendor configuration means the environment is already managed.
+    if os.environ.get("__EGL_VENDOR_LIBRARY_FILENAMES") or os.environ.get(
+        "__EGL_VENDOR_LIBRARY_DIRS"
+    ):
+        _log("EGL vendor library path already configured; leaving it untouched")
+        return
+
+    icd_path = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
+    if os.path.exists(icd_path):
+        _log(f"NVIDIA EGL ICD already present at {icd_path}")
+        return
+
+    def _nvidia_egl_present():
+        # Driver loaded in the kernel.
+        if os.path.exists("/proc/driver/nvidia"):
+            return True
+        # Vendor library loadable by name (resolved via the dynamic linker).
+        try:
+            ctypes.CDLL("libEGL_nvidia.so.0")
+            return True
+        except OSError:
+            pass
+        # Vendor library file present in a standard location.
+        for d in (
+            "/usr/lib/x86_64-linux-gnu",
+            "/usr/lib64",
+            "/usr/lib",
+            "/usr/local/nvidia/lib64",
+        ):
+            if glob.glob(os.path.join(d, "libEGL_nvidia.so*")):
+                return True
+        return False
+
+    if not _nvidia_egl_present():
+        _log("no NVIDIA EGL driver detected; leaving MUJOCO_GL=egl for MuJoCo to handle")
+        return
+
+    icd = {"file_format_version": "1.0.0", "ICD": {"library_path": "libEGL_nvidia.so.0"}}
+    try:
+        os.makedirs(os.path.dirname(icd_path), exist_ok=True)
+        with open(icd_path, "w") as f:
+            json.dump(icd, f)
+        _log(f"wrote NVIDIA EGL ICD to {icd_path}")
+    except OSError:
+        # Standard location not writable (non-root): write a user-owned ICD and
+        # point libglvnd at it directly.
+        vendor_dir = os.path.join(tempfile.gettempdir(), "mujoco_egl_vendor")
+        os.makedirs(vendor_dir, exist_ok=True)
+        vendor_icd = os.path.join(vendor_dir, "10_nvidia.json")
+        with open(vendor_icd, "w") as f:
+            json.dump(icd, f)
+        os.environ["__EGL_VENDOR_LIBRARY_FILENAMES"] = vendor_icd
+        _log(
+            f"wrote NVIDIA EGL ICD to {vendor_icd} and set __EGL_VENDOR_LIBRARY_FILENAMES"
+        )
+
+
+_RENDER_CHILD_ENV = "_MONOCULAR_DEMOS_RENDER_CHILD"
+
+
+def _render_trajectory_in_subprocess(pose, filename, kwargs, verbose=True):
+    """Render in a clean child process.
+
+    On a headless cloud GPU, creating MuJoCo's EGL context in a process that
+    already holds CUDA contexts (from JAX and/or TensorFlow) can hard-crash with
+    a segfault that kills the whole kernel with no traceback. A fresh child
+    process initializes EGL before any CUDA context exists, which avoids the
+    conflict; it also contains any remaining native crash to the child (raising
+    a normal Python error here) instead of taking down the notebook kernel.
+    """
+    import pickle
+    import subprocess
+    import sys
+
+    def _to_numpy(value):
+        if value is None:
+            return None
+        return np.asarray(value)
+
+    payload = {
+        "pose": _to_numpy(pose),
+        "filename": filename,
+        "kwargs": {
+            key: (_to_numpy(value) if hasattr(value, "__array__") else value)
+            for key, value in kwargs.items()
+        },
+    }
+
+    fd, payload_path = tempfile.mkstemp(suffix=".pkl")
+    with os.fdopen(fd, "wb") as f:
+        pickle.dump(payload, f)
+
+    child_env = dict(os.environ)
+    child_env[_RENDER_CHILD_ENV] = "1"
+    child_env.setdefault("MUJOCO_GL", "egl")
+    # Rendering only uses the CPU MuJoCo model (mj_forward), never a JAX GPU
+    # computation. Force JAX onto CPU in the child so it never creates a CUDA
+    # context -- EGL is then the sole user of the GPU, which is what avoids the
+    # EGL-after-CUDA segfault.
+    child_env["JAX_PLATFORMS"] = "cpu"
+    child_env.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+    # Pin a single EGL device so MuJoCo does not iterate/initialize every EGL
+    # device looking for a working one -- that device-enumeration walk is part of
+    # the EGL+CUDA crash path. On a single-GPU host this is device 0.
+    child_env.setdefault("MUJOCO_EGL_DEVICE_ID", "0")
+
+    child_code = (
+        "import pickle, sys; "
+        "from monocular_demos.biomechanics_mjx.visualize import render_trajectory; "
+        "d = pickle.load(open(sys.argv[1], 'rb')); "
+        "render_trajectory(d['pose'], d['filename'], **d['kwargs'])"
+    )
+
+    if verbose:
+        print("[render_trajectory] rendering in an isolated subprocess (EGL/CUDA safety)")
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", child_code, payload_path],
+            env=child_env,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        os.remove(payload_path)
+
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.returncode != 0:
+        raise RuntimeError(
+            "Off-screen rendering failed in the isolated subprocess "
+            f"(exit code {result.returncode}). This is usually an EGL/GPU "
+            "driver problem on the host. stderr tail:\n"
+            f"{result.stderr[-3000:]}"
+        )
 
 
 # use %env MUJOCO_GL=egl to avoid the need for a display
@@ -60,6 +226,42 @@ def render_trajectory(
     Returns:
         if filename is None, returns the images as a list
     """
+
+    configure_mujoco_egl()
+
+    # Isolate the EGL render in a clean child process. In a process that already
+    # holds JAX/TensorFlow CUDA contexts, MuJoCo's EGL context creation can
+    # segfault and kill the kernel; a fresh subprocess initializes EGL first and
+    # contains any native crash. Only used when writing to a file with the
+    # default model and the EGL backend, and never re-entered by the child.
+    if (
+        os.environ.get(_RENDER_CHILD_ENV) != "1"
+        and os.environ.get("MONOCULAR_DEMOS_RENDER_INLINE") != "1"
+        and filename is not None
+        and mj_model is None
+        and os.environ.get("MUJOCO_GL", "egl") == "egl"
+    ):
+        _render_trajectory_in_subprocess(
+            pose,
+            filename,
+            dict(
+                xml_path=xml_path,
+                body_scale=body_scale,
+                site_offsets=site_offsets,
+                margin=margin,
+                heel_vertical_offset=heel_vertical_offset,
+                height=height,
+                width=width,
+                fps=fps,
+                show_grfs=show_grfs,
+                actuators=actuators,
+                azimuth=azimuth,
+                blank_background=blank_background,
+                shadow=shadow,
+                hide_tendon=hide_tendon,
+            ),
+        )
+        return
 
     from monocular_demos.biomechanics_mjx.forward_kinematics import (
         ForwardKinematics,
@@ -129,7 +331,17 @@ def render_trajectory(
     camera.azimuth = azimuth
     camera.elevation = -20
 
-    renderer = mujoco.Renderer(model, height=height, width=width)
+    try:
+        renderer = mujoco.Renderer(model, height=height, width=width)
+    except (ImportError, mujoco.FatalError, RuntimeError) as exc:
+        raise RuntimeError(
+            "Failed to create the MuJoCo off-screen renderer (GL backend "
+            f"MUJOCO_GL={os.environ.get('MUJOCO_GL')!r}). On a headless GPU "
+            "machine this is almost always a missing/misconfigured EGL driver. "
+            "Ensure MUJOCO_GL=egl is set before importing mujoco, that a GPU is "
+            "available, and that the NVIDIA EGL ICD config exists "
+            "(configure_mujoco_egl writes it automatically when run as root)."
+        ) from exc
 
     images = []
     for i in trange(len(pose)):
@@ -185,6 +397,9 @@ def get_composed_meshes(model, data):
     Returns:
     - combined: a single mesh object representing the combination of all individual meshes
     """
+    _ensure_collections_mapping_compat()
+    from stl import mesh  # install via pip install numpy-stl
+
     t_mesh_L = []
     id_geom_with_mesh = np.where(model.geom_type == mujoco.mjtGeom.mjGEOM_MESH)[0]
     id_mesh = model.geom_dataid[id_geom_with_mesh]
@@ -248,6 +463,9 @@ def get_overlay_monocular(
         downsample: the downsample factor
     """
 
+    _ensure_collections_mapping_compat()
+    import pyrender
+    import trimesh
     from monocular_demos.camera import get_extrinsic_dynamic
 
     K = get_intrinsic(camera_params, 0)

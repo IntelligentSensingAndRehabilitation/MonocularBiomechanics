@@ -1,4 +1,6 @@
 import os
+import ast
+from pathlib import Path
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
@@ -6,10 +8,73 @@ os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
 import numpy as np
 
 
+def test_visualize_module_has_no_top_level_overlay_imports():
+    visualize_path = (
+        Path(__file__).resolve().parents[1]
+        / "monocular_demos"
+        / "biomechanics_mjx"
+        / "visualize.py"
+    )
+    tree = ast.parse(visualize_path.read_text())
+    top_level_imports = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            top_level_imports.update(alias.name.split(".")[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            top_level_imports.add(node.module.split(".")[0])
+
+    assert "pyrender" not in top_level_imports
+    assert "trimesh" not in top_level_imports
+    assert "stl" not in top_level_imports
+
+
 def test_visualize_importable():
     from monocular_demos.biomechanics_mjx.visualize import render_trajectory, jupyter_embed_video
     assert callable(render_trajectory)
     assert callable(jupyter_embed_video)
+
+
+def test_collections_mapping_alias_restored_on_import():
+    # ``mujoco.mjx`` imports ``trimesh`` -> ``networkx`` at module load, and old
+    # ``networkx`` does ``from collections import Mapping`` (removed in 3.10).
+    # Importing the package must restore the alias so that chain imports cleanly.
+    import collections
+
+    import monocular_demos  # noqa: F401
+
+    assert hasattr(collections, "Mapping")
+    assert collections.Mapping is collections.abc.Mapping
+
+
+def test_configure_mujoco_egl_defaults_backend():
+    from monocular_demos.biomechanics_mjx.visualize import configure_mujoco_egl
+
+    configure_mujoco_egl()
+    assert os.environ.get("MUJOCO_GL") == "egl"
+    # Idempotent: a second call must not raise.
+    configure_mujoco_egl()
+
+
+def test_render_trajectory_smoke(tmp_path):
+    # Guards the headless render path that crashes on Colab when the EGL backend
+    # is misconfigured. Skips when no GPU rendering backend is available.
+    import mujoco
+
+    from monocular_demos.biomechanics_mjx.forward_kinematics import ForwardKinematics
+    from monocular_demos.biomechanics_mjx.visualize import render_trajectory
+
+    fk = ForwardKinematics()
+    pose = np.zeros((3, fk.model.nq))
+    out = tmp_path / "reconstruction.mp4"
+
+    try:
+        render_trajectory(pose, str(out), xml_path=None)
+    except (mujoco.FatalError, ImportError, RuntimeError) as exc:
+        import pytest
+
+        pytest.skip(f"No usable rendering backend in this environment: {exc}")
+
+    assert out.exists() and out.stat().st_size > 0
 
 
 def test_get_composed_meshes_returns_vertices_and_faces():
