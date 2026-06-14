@@ -12,10 +12,7 @@ from monocular_demos.biomechanics_mjx.forward_kinematics import (
 )
 from monocular_demos.dataset import get_samsung_calibration
 from monocular_demos.biomechanics_mjx.monocular_trajectory import project_dynamic
-import pyrender
 from monocular_demos.camera import get_intrinsic, get_extrinsic, distort_3d
-from stl import mesh  # install via pip install numpy-stl
-import trimesh
 import tempfile
 import os
 
@@ -185,6 +182,8 @@ def get_composed_meshes(model, data):
     Returns:
     - combined: a single mesh object representing the combination of all individual meshes
     """
+    from stl import mesh  # install via pip install numpy-stl
+
     t_mesh_L = []
     id_geom_with_mesh = np.where(model.geom_type == mujoco.mjtGeom.mjGEOM_MESH)[0]
     id_mesh = model.geom_dataid[id_geom_with_mesh]
@@ -248,6 +247,8 @@ def get_overlay_monocular(
         downsample: the downsample factor
     """
 
+    import pyrender
+    import trimesh
     from monocular_demos.camera import get_extrinsic_dynamic
 
     K = get_intrinsic(camera_params, 0)

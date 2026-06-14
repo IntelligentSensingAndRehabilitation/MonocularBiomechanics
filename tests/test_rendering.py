@@ -1,9 +1,31 @@
 import os
+import ast
+from pathlib import Path
 
 os.environ.setdefault("MUJOCO_GL", "egl")
 os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
 
 import numpy as np
+
+
+def test_visualize_module_has_no_top_level_overlay_imports():
+    visualize_path = (
+        Path(__file__).resolve().parents[1]
+        / "monocular_demos"
+        / "biomechanics_mjx"
+        / "visualize.py"
+    )
+    tree = ast.parse(visualize_path.read_text())
+    top_level_imports = set()
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            top_level_imports.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module is not None:
+            top_level_imports.add(node.module)
+
+    assert "pyrender" not in top_level_imports
+    assert "trimesh" not in top_level_imports
+    assert "stl" not in top_level_imports
 
 
 def test_visualize_importable():
