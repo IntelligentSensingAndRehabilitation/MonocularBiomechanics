@@ -25,7 +25,7 @@ def _ensure_collections_mapping_compat():
         collections.Mapping = collections.abc.Mapping
 
 
-def configure_mujoco_egl():
+def configure_mujoco_egl(verbose: bool = True):
     """Make MuJoCo's headless EGL rendering backend usable on cloud GPUs.
 
     ``mujoco.Renderer`` renders off-screen through EGL. To create a GPU device
@@ -39,27 +39,53 @@ def configure_mujoco_egl():
     its ICD config is missing, write one so libglvnd can discover the driver.
     """
     import ctypes
+    import glob
     import json
+
+    def _log(msg):
+        if verbose:
+            print(f"[configure_mujoco_egl] {msg}")
 
     os.environ.setdefault("MUJOCO_GL", "egl")
     if os.environ["MUJOCO_GL"] != "egl":
+        _log(f"MUJOCO_GL={os.environ['MUJOCO_GL']!r} (not egl); nothing to do")
         return
 
     # An explicit vendor configuration means the environment is already managed.
     if os.environ.get("__EGL_VENDOR_LIBRARY_FILENAMES") or os.environ.get(
         "__EGL_VENDOR_LIBRARY_DIRS"
     ):
+        _log("EGL vendor library path already configured; leaving it untouched")
         return
 
     icd_path = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
     if os.path.exists(icd_path):
+        _log(f"NVIDIA EGL ICD already present at {icd_path}")
         return
 
-    # Only act when the NVIDIA EGL driver is actually installed; otherwise leave
-    # the backend untouched so MuJoCo can raise its own informative error.
-    try:
-        ctypes.CDLL("libEGL_nvidia.so.0")
-    except OSError:
+    def _nvidia_egl_present():
+        # Driver loaded in the kernel.
+        if os.path.exists("/proc/driver/nvidia"):
+            return True
+        # Vendor library loadable by name (resolved via the dynamic linker).
+        try:
+            ctypes.CDLL("libEGL_nvidia.so.0")
+            return True
+        except OSError:
+            pass
+        # Vendor library file present in a standard location.
+        for d in (
+            "/usr/lib/x86_64-linux-gnu",
+            "/usr/lib64",
+            "/usr/lib",
+            "/usr/local/nvidia/lib64",
+        ):
+            if glob.glob(os.path.join(d, "libEGL_nvidia.so*")):
+                return True
+        return False
+
+    if not _nvidia_egl_present():
+        _log("no NVIDIA EGL driver detected; leaving MUJOCO_GL=egl for MuJoCo to handle")
         return
 
     icd = {"file_format_version": "1.0.0", "ICD": {"library_path": "libEGL_nvidia.so.0"}}
@@ -67,6 +93,7 @@ def configure_mujoco_egl():
         os.makedirs(os.path.dirname(icd_path), exist_ok=True)
         with open(icd_path, "w") as f:
             json.dump(icd, f)
+        _log(f"wrote NVIDIA EGL ICD to {icd_path}")
     except OSError:
         # Standard location not writable (non-root): write a user-owned ICD and
         # point libglvnd at it directly.
@@ -76,6 +103,9 @@ def configure_mujoco_egl():
         with open(vendor_icd, "w") as f:
             json.dump(icd, f)
         os.environ["__EGL_VENDOR_LIBRARY_FILENAMES"] = vendor_icd
+        _log(
+            f"wrote NVIDIA EGL ICD to {vendor_icd} and set __EGL_VENDOR_LIBRARY_FILENAMES"
+        )
 
 
 # use %env MUJOCO_GL=egl to avoid the need for a display
@@ -188,7 +218,17 @@ def render_trajectory(
     camera.azimuth = azimuth
     camera.elevation = -20
 
-    renderer = mujoco.Renderer(model, height=height, width=width)
+    try:
+        renderer = mujoco.Renderer(model, height=height, width=width)
+    except (ImportError, mujoco.FatalError, RuntimeError) as exc:
+        raise RuntimeError(
+            "Failed to create the MuJoCo off-screen renderer (GL backend "
+            f"MUJOCO_GL={os.environ.get('MUJOCO_GL')!r}). On a headless GPU "
+            "machine this is almost always a missing/misconfigured EGL driver. "
+            "Ensure MUJOCO_GL=egl is set before importing mujoco, that a GPU is "
+            "available, and that the NVIDIA EGL ICD config exists "
+            "(configure_mujoco_egl writes it automatically when run as root)."
+        ) from exc
 
     images = []
     for i in trange(len(pose)):
