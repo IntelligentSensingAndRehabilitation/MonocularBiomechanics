@@ -152,6 +152,10 @@ def _render_trajectory_in_subprocess(pose, filename, kwargs, verbose=True):
     # EGL-after-CUDA segfault.
     child_env["JAX_PLATFORMS"] = "cpu"
     child_env.setdefault("XLA_PYTHON_CLIENT_PREALLOCATE", "false")
+    # Pin a single EGL device so MuJoCo does not iterate/initialize every EGL
+    # device looking for a working one -- that device-enumeration walk is part of
+    # the EGL+CUDA crash path. On a single-GPU host this is device 0.
+    child_env.setdefault("MUJOCO_EGL_DEVICE_ID", "0")
 
     child_code = (
         "import pickle, sys; "
