@@ -19,9 +19,9 @@ def test_visualize_module_has_no_top_level_overlay_imports():
     top_level_imports = set()
     for node in tree.body:
         if isinstance(node, ast.Import):
-            top_level_imports.update(alias.name for alias in node.names)
+            top_level_imports.update(alias.name.split(".")[0] for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
-            top_level_imports.add(node.module)
+            top_level_imports.add(node.module.split(".")[0])
 
     assert "pyrender" not in top_level_imports
     assert "trimesh" not in top_level_imports
