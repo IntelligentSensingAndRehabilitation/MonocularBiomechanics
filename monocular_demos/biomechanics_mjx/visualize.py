@@ -25,6 +25,58 @@ def _ensure_collections_mapping_compat():
         collections.Mapping = collections.abc.Mapping
 
 
+def configure_mujoco_egl():
+    """Make MuJoCo's headless EGL rendering backend usable on cloud GPUs.
+
+    ``mujoco.Renderer`` renders off-screen through EGL. To create a GPU device
+    display, libglvnd must find an ICD config that points at the NVIDIA EGL
+    driver. Cloud notebook kernels (e.g. Google Colab) install the driver
+    libraries but not that ICD config, so EGL cannot initialize a device display
+    and the renderer aborts -- in a notebook this kills the kernel with no
+    Python traceback.
+
+    Default the GL backend to EGL and, when the NVIDIA EGL driver is present but
+    its ICD config is missing, write one so libglvnd can discover the driver.
+    """
+    import ctypes
+    import json
+
+    os.environ.setdefault("MUJOCO_GL", "egl")
+    if os.environ["MUJOCO_GL"] != "egl":
+        return
+
+    # An explicit vendor configuration means the environment is already managed.
+    if os.environ.get("__EGL_VENDOR_LIBRARY_FILENAMES") or os.environ.get(
+        "__EGL_VENDOR_LIBRARY_DIRS"
+    ):
+        return
+
+    icd_path = "/usr/share/glvnd/egl_vendor.d/10_nvidia.json"
+    if os.path.exists(icd_path):
+        return
+
+    # Only act when the NVIDIA EGL driver is actually installed; otherwise leave
+    # the backend untouched so MuJoCo can raise its own informative error.
+    try:
+        ctypes.CDLL("libEGL_nvidia.so.0")
+    except OSError:
+        return
+
+    icd = {"file_format_version": "1.0.0", "ICD": {"library_path": "libEGL_nvidia.so.0"}}
+    try:
+        os.makedirs(os.path.dirname(icd_path), exist_ok=True)
+        with open(icd_path, "w") as f:
+            json.dump(icd, f)
+    except OSError:
+        # Standard location not writable (non-root): write a user-owned ICD and
+        # point libglvnd at it directly.
+        vendor_dir = os.path.join(tempfile.gettempdir(), "mujoco_egl_vendor")
+        os.makedirs(vendor_dir, exist_ok=True)
+        vendor_icd = os.path.join(vendor_dir, "10_nvidia.json")
+        with open(vendor_icd, "w") as f:
+            json.dump(icd, f)
+        os.environ["__EGL_VENDOR_LIBRARY_FILENAMES"] = vendor_icd
+
 
 # use %env MUJOCO_GL=egl to avoid the need for a display
 def render_trajectory(
@@ -65,6 +117,8 @@ def render_trajectory(
     Returns:
         if filename is None, returns the images as a list
     """
+
+    configure_mujoco_egl()
 
     from monocular_demos.biomechanics_mjx.forward_kinematics import (
         ForwardKinematics,
