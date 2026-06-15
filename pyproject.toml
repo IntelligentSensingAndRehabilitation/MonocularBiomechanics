@@ -9,7 +9,7 @@ readme = "README.md"
 authors = [
     {name = "J.D. Peiffer"}
 ]
-requires-python = "~=3.11.0"
+requires-python = ">=3.11.0"
 dependencies = [
     "equinox",
     "gradio",
