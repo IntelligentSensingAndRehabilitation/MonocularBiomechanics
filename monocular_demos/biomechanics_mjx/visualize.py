@@ -131,30 +131,36 @@ def render_trajectory(
 
     renderer = mujoco.Renderer(model, height=height, width=width)
 
-    images = []
-    for i in trange(len(pose)):
-        if isinstance(pose, list):
-            # when we are passed a list of mj_data just use them
-            data = pose[i]
+    try:
+        images = []
 
-            # relight as otherwise super dark
-            mujoco.mj_camlight(model, data)
+        for i in trange(len(pose)):
+            if isinstance(pose, list):
+                data = pose[i]
+                mujoco.mj_camlight(model, data)
+            else:
+                data.qpos = pose[i]
+                mujoco.mj_forward(model, data)
 
-        else:
-            data.qpos = pose[i]
-            mujoco.mj_forward(model, data)
+            if i == 0:
+                camera.lookat = data.xpos[1]
+            else:
+                camera.lookat = camera.lookat * 0.7 + data.xpos[1] * 0.3
 
-        if i == 0:
-            camera.lookat = data.xpos[1]
-        else:
-            camera.lookat = camera.lookat * 0.7 + data.xpos[1] * 0.3
+            if actuators is not None:
+                data.ctrl = data.ctrl * 0.0
+                data.act = actuators[i]
 
-        if actuators is not None:
-            data.ctrl = data.ctrl * 0.0
-            data.act = actuators[i]
+            renderer.update_scene(
+                data,
+                camera=camera,
+                scene_option=scene_option
+            )
 
-        renderer.update_scene(data, camera=camera, scene_option=scene_option)
-        images.append(renderer.render())
+            images.append(renderer.render())
+
+    finally:
+        renderer.close()
 
     if filename is not None:
         import cv2
@@ -324,7 +330,10 @@ def get_overlay_monocular(
             frame[mask] = color[mask]
             return frame
 
-    return overlay
+    def cleanup():
+        r.delete()
+
+        return overlay, cleanup
 
 def render_overlay(
         fit_timestamps,
@@ -347,20 +356,52 @@ def render_overlay(
     fit_inds = np.arange(len(fit_timestamps))
     confs = np.ones((len(fit_timestamps)))
 
-    mesh_overlay = get_overlay_monocular(camera_params, rvec, scaled_model, qpos, fit_inds, confs, width, height)
+    mesh_overlay, cleanup_renderer = get_overlay_monocular(
+        camera_params,
+        rvec,
+        scaled_model,
+        qpos,
+        fit_inds,
+        confs,
+        width,
+        height,
+        downsample=2,
+    )
 
     def overlay(image, idx):
-        progress(idx / (max_frames if max_frames is not None else rvec.shape[0]), desc="Rendering Overlay...")
+        progress(
+            idx / (
+                max_frames
+                if max_frames is not None
+                else rvec.shape[0]
+            ),
+            desc="Rendering Overlay..."
+        )
         return mesh_overlay(image, idx)
 
     fd, out_file_name = tempfile.mkstemp(suffix=".mp4")
     os.close(fd)
 
-    video_overlay(video_path, out_file_name, overlay, downsample=1, compress=True, max_frames=max_frames)
+    try:
+        video_overlay(
+            video_path,
+            out_file_name,
+            overlay,
+            downsample=1,
+            compress=True,
+            max_frames=max_frames
+        )
+    finally:
+        cleanup_renderer()
 
-    # move tempfile to final location
-    shutil.move(out_file_name, video_path.split('.')[0] + '_overlay.mp4')
-    return video_path.split('.')[0] + '_overlay.mp4'
+    final_output = video_path.split('.')[0] + '_overlay.mp4'
+
+    shutil.move(
+        out_file_name,
+        final_output
+    )
+
+    return final_output
 
 
 def video_overlay(
