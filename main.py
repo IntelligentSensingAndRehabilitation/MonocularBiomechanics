@@ -2,6 +2,9 @@ from monocular_demos.utils import jax_memory_limit, tensorflow_memory_limit
 tensorflow_memory_limit()
 jax_memory_limit()
 import os
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/app/results")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
 from typing import List
 
 os.environ.setdefault("MUJOCO_GL", "egl")
@@ -52,7 +55,7 @@ def save_metrabs_data(accumulated, video_name):
         pose2d.append(p2d[0].numpy())
         confs.append(np.ones((87)))
 
-        with open(f"{fname}_keypoints.npz", "wb") as f:
+        with open(os.path.join(OUTPUT_DIR, f"{fname}_keypoints.npz"), "wb") as f:
             np.savez(f, keypoints3d=pose3d, keypoints2d=pose2d, boxes=boxes, confs=confs)
 
 def find_matching_video(fname):
@@ -74,7 +77,7 @@ def render_mjx(selected_file, progress=gr.Progress()):
     fname = selected_file.replace('_fitted_model.npz', '')
     
     # Try to load keypoints data
-    biomech_file = selected_file
+    biomech_file = os.path.join(OUTPUT_DIR, selected_file)
     
     result_text = ""
     video_filename = f"{fname}_mjx.mp4"
@@ -105,7 +108,7 @@ def render_overlay_video(selected_file, max_frames, progress=gr.Progress()):
     fname = selected_file.replace('_fitted_model.npz', '') # TODO: fix this
     
     # Try to load keypoints data
-    biomech_file = selected_file
+    biomech_file = os.path.join(OUTPUT_DIR, selected_file)
     
     result_text = ""
     
@@ -172,7 +175,7 @@ def get_framerate(video_path):
 def load_metrabs_data(video_name):
     fname = video_name.split("/")[-1].split(".")[0]
     try:
-        with open(f"{fname}_keypoints.npz", "rb") as f:
+        with open(os.path.join(OUTPUT_DIR, f"{fname}_keypoints.npz"), "rb") as f:
             data = np.load(f, allow_pickle=True)
             boxes = data["boxes"]
             keypoints2d = data["keypoints2d"]
@@ -307,7 +310,7 @@ def process_videos_with_biomechanics(
 
         # save zip archive
         fname = video_path.split("/")[-1].split(".")[0]
-        with open(f"{fname}_fitted_model.npz", "wb") as f:
+        with open(os.path.join(OUTPUT_DIR, f"{fname}_fitted_model.npz"), "wb") as f:
             np.savez(
                 f,
                 timestamps=np.array(timestamps),
@@ -324,8 +327,10 @@ def process_videos_with_biomechanics(
 
 
 def get_available_fitted_models():
-    """Get list of available fitted model files"""
-    fitted_files = [f for f in os.listdir('.') if f.endswith('_fitted_model.npz')]
+    fitted_files = [
+        f for f in os.listdir(OUTPUT_DIR)
+        if f.endswith("_fitted_model.npz")
+    ]
     return fitted_files if fitted_files else ["No fitted models found"]
 
 def load_and_visualize_data(selected_file, selected_joints=None):
@@ -338,8 +343,8 @@ def load_and_visualize_data(selected_file, selected_joints=None):
     fname = selected_file.replace('_fitted_model.npz', '')
     
     # Try to load keypoints data
-    keypoints_file = f"{fname}_keypoints.npz"
-    biomech_file = selected_file
+    keypoints_file = os.path.join(OUTPUT_DIR, f"{fname}_keypoints.npz")
+    biomech_file = os.path.join(OUTPUT_DIR, selected_file)
     
     result_text = ""
     plot1 = None
@@ -402,7 +407,7 @@ def get_joint_options(selected_file):
     if not selected_file or selected_file == "No fitted models found":
         return gr.Dropdown(choices=[], value=[])
     
-    biomech_file = selected_file
+    biomech_file = os.path.join(OUTPUT_DIR, selected_file)
     
     if os.path.exists(biomech_file):
         with open(biomech_file, "rb") as f:
@@ -562,4 +567,7 @@ with gr.Blocks(title="Open Portable Biomechanics Lab") as demo:
         )
 
 
-demo.launch()
+demo.launch(
+    server_name="0.0.0.0",
+    server_port=7860
+)
